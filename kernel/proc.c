@@ -125,6 +125,8 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->ticks = 0;
+  p->tickets = 1;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -164,6 +166,8 @@ freeproc(struct proc *p)
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
+  p->ticks = 0;
+  p->tickets = 0;
   p->parent = 0;
   p->name[0] = 0;
   p->chan = 0;
@@ -296,6 +300,9 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+
+  // Setup tickets
+  np->tickets = p->tickets;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -463,6 +470,7 @@ scheduler(void)
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
+        p->ticks = p->ticks + 1;
         c->proc = p;
         swtch(&c->context, &p->context);
 
@@ -699,6 +707,10 @@ procdump(void)
 int 
 settickets(int number)
 {
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->tickets = number;
+  release(&p->lock);
   return 0;
 }
 

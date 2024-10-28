@@ -95,7 +95,14 @@ sys_uptime(void)
 uint64
 sys_settickets(void)
 {
-  return settickets(0);
+  int n;
+  argint(0, &n);
+  if(n < 1)
+  {
+    return -1;
+  }
+  return settickets(n);
+ 
 }
 
 uint64
