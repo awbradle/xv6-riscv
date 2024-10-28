@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "pstat.h"
 
 struct cpu cpus[NCPU];
 
@@ -579,7 +580,6 @@ void
 wakeup(void *chan)
 {
   struct proc *p;
-
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p != myproc()){
       acquire(&p->lock);
@@ -692,4 +692,20 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+//Set number of tickets a process should have
+//Used for lottery scheduling
+int 
+settickets(int number)
+{
+  return 0;
+}
+
+//Gets information about all running processes
+//Returns that info in a pstat struct
+int
+getpinfo(struct pstat *)
+{
+  return 0;
 }
