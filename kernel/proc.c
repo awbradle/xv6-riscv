@@ -717,7 +717,23 @@ settickets(int number)
 //Gets information about all running processes
 //Returns that info in a pstat struct
 int
-getpinfo(struct pstat *)
+getpinfo(struct pstat *ps)
 {
-  return 0;
+  struct proc *p = myproc();
+  int err = 0;
+  int i = 0;
+  int inuse = 0;
+  for (i = 0; i < NPROC; i++)
+  {
+    inuse = (proc[i].state != UNUSED);
+      if(copyout(p->pagetable, (uint64) &((*ps).inuse[i]), (char*) &inuse, sizeof(int)) != 0)
+        err = 1;
+      if(copyout(p->pagetable, (uint64) &((*ps).tickets[i]), (char*) &(proc[i].tickets), sizeof(int)) != 0)
+        err = 1;
+      if(copyout(p->pagetable, (uint64) &((*ps).pid[i]), (char*) &(proc[i].pid), sizeof(int)) != 0)
+        err = 1;
+      if(copyout(p->pagetable, (uint64) &((*ps).ticks[i]), (char*) &(proc[i].ticks), sizeof(int)) != 0)
+        err = 1;
+  }
+  return err;
 }
