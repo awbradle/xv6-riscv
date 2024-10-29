@@ -442,6 +442,41 @@ wait(uint64 addr)
   }
 }
 
+// from FreeBSD.
+int
+do_rand(unsigned long *ctx)
+{
+/*
+ * Compute x = (7^5 * x) mod (2^31 - 1)
+ * without overflowing 31 bits:
+ *      (2^31 - 1) = 127773 * (7^5) + 2836
+ * From "Random number generators: good ones are hard to find",
+ * Park and Miller, Communications of the ACM, vol. 31, no. 10,
+ * October 1988, p. 1195.
+ */
+    long hi, lo, x;
+
+    /* Transform to [1, 0x7ffffffe] range. */
+    x = (*ctx % 0x7ffffffe) + 1;
+    hi = x / 127773;
+    lo = x % 127773;
+    x = 16807 * lo - 2836 * hi;
+    if (x < 0)
+        x += 0x7fffffff;
+    /* Transform to [0, 0x7ffffffd] range. */
+    x--;
+    *ctx = x;
+    return (x);
+}
+
+unsigned long rand_next = 1;
+
+int
+rand(void)
+{
+    return (do_rand(&rand_next));
+}
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -454,34 +489,50 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-
   c->proc = 0;
-  for(;;){
+  for(;;)
+  {
     // The most recent process to run may have had interrupts
     // turned off; enable them to avoid a deadlock if all
     // processes are waiting.
     intr_on();
-
+    int total_tickets = 0;
     int found = 0;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
+    for(p = proc; p < &proc[NPROC]; p++) 
+    {
+      if(p->state == RUNNABLE) 
+      {
+        //Add runnable process to the lottery
+        total_tickets = total_tickets + p->tickets;
+      }
+    }
+    //Pick the winner
+    int pick_winner = rand() % total_tickets;
+    for(p = proc; p < &proc[NPROC]; p++) 
+    {
+      
+      if(p->state == RUNNABLE) 
+      {
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
-        p->state = RUNNING;
-        p->ticks = p->ticks + 1;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-        found = 1;
+        pick_winner = pick_winner - p->tickets;
+        if(pick_winner < 0)
+        {
+          acquire(&p->lock);
+          p->state = RUNNING;
+          p->ticks = p->ticks + 1;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+          c->proc = 0;
+          release(&p->lock);
+          found = 1;
+          break;
+        }     
       }
-      release(&p->lock);
     }
-    if(found == 0) {
+    if(found == 0) 
+    {
       // nothing to run; stop running on this core until an interrupt.
       intr_on();
       asm volatile("wfi");
